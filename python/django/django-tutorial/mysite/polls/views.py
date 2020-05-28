@@ -1,4 +1,8 @@
-from django.http import HttpResponseRedirect
+import base64
+import os
+from ddtrace import tracer
+from ddtrace.helpers import get_correlation_ids
+from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views import generic
@@ -51,3 +55,22 @@ def vote(request, question_id):
         # with POST data. This prevents data from being posted twice if a
         # user hits the Back button.
         return HttpResponseRedirect(reverse('polls:results', args=(question.id,)))
+
+
+def trace_test(request, spans=1, junk=False):
+    for i in range(1, spans+1):
+        with tracer.trace('test span', resource=f"number {i}") as span:
+            span.set_tag("index", i)
+            if junk:
+                span.set_tag("random junk", base64.encodebytes(os.urandom(33)))
+
+    trace_id, span_id = get_correlation_ids()
+
+    return HttpResponse(
+        content="\n".join([
+            f"OK, generated at least {spans} spans.",
+            f"Trace ID: {trace_id}",
+            f"Span ID: {span_id}",
+            "",
+        ]),
+        content_type="text/plain")
